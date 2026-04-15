@@ -195,7 +195,7 @@ def main():
     margin_mm = 2.0
     base_height_mm = 3.0
     text_height_mm = 2.0
-    slope_angle_deg = 45
+    slope_angle_deg = 60
     layer_height = 0.08
 
     if input_path.lower().endswith(".pdf"):
