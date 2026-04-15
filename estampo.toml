@@ -37,5 +37,5 @@ orient = "flat"
 filament = 3
 
 [pack]
-command = "bambox repack {output_dir}/plate_sliced.gcode.3mf"
-output = "{output_dir}/plate_sliced.gcode.3mf"
+command = "bambox repack {sliced_3mf} -m p1s"
+output = "{sliced_3mf}"
