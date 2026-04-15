@@ -16,6 +16,7 @@ on:
       - "*.pdf"
       - "estampo.toml"
       - "generate_stamp.py"
+      - ".github/workflows/**"
 
 permissions:
   pull-requests: write
