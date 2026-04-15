@@ -9,6 +9,9 @@ on:
       - "estampo.toml"
       - "generate_stamp.py"
 
+permissions:
+  pull-requests: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -20,15 +23,15 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install dependencies
-        run: |
-          pip install estampo bambox pymupdf numpy-stl Pillow scipy numpy
+      - name: Install stamp generator dependencies
+        run: pip install pymupdf numpy-stl Pillow scipy numpy
 
       - name: Regenerate stamp STL from PDF
         run: python generate_stamp.py Borbon_1776247325.pdf Borbon_stamp.stl 43.5
 
-      - name: Run estampo pipeline
-        run: estampo run
+      - uses: estampo/estampo@main
+        with:
+          orca-version: "2.3.1"
 
       - name: Upload sliced output
         uses: actions/upload-artifact@v4
