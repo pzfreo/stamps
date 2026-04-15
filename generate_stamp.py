@@ -6,6 +6,7 @@ better printability on FDM printers. The slope is quantized to the
 printer's layer height for clean stepping.
 """
 
+import argparse
 import sys
 import os
 import numpy as np
@@ -184,21 +185,38 @@ def generate_stamp_stl(binary, pixel_size_mm, margin_mm, base_height_mm,
 
 
 def main():
-    if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <input.pdf|png> [output.stl] [width_mm]")
-        sys.exit(1)
+    parser = argparse.ArgumentParser(
+        description="Convert a PDF or PNG stamp design to a mirrored 3D-printable STL for FDM printing."
+    )
+    parser.add_argument("input", help="input PDF or PNG file")
+    parser.add_argument("-o", "--output", help="output STL file (default: <input>_stamp.stl)")
+    parser.add_argument("-w", "--width", type=float, default=43.5,
+                        help="target printable width in mm (default: 43.5)")
+    parser.add_argument("--resolution", type=float, default=0.05,
+                        help="pixel size in mm (default: 0.05)")
+    parser.add_argument("--margin", type=float, default=2.0,
+                        help="border margin around text in mm (default: 2.0)")
+    parser.add_argument("--base-height", type=float, default=3.0,
+                        help="base/handle height in mm (default: 3.0)")
+    parser.add_argument("--text-height", type=float, default=2.0,
+                        help="raised text height in mm (default: 2.0)")
+    parser.add_argument("--slope-angle", type=float, default=60,
+                        help="pyramid slope angle in degrees (default: 60)")
+    parser.add_argument("--layer-height", type=float, default=0.08,
+                        help="layer height for slope quantization in mm (default: 0.08)")
+    args = parser.parse_args()
 
-    input_path = sys.argv[1]
+    input_path = args.input
     base_name = os.path.splitext(os.path.basename(input_path))[0]
-    output_path = sys.argv[2] if len(sys.argv) > 2 else f"{base_name}_stamp.stl"
-    target_width_mm = float(sys.argv[3]) if len(sys.argv) > 3 else 43.5
+    output_path = args.output or f"{base_name}_stamp.stl"
+    target_width_mm = args.width
 
-    pixel_size_mm = 0.05
-    margin_mm = 2.0
-    base_height_mm = 3.0
-    text_height_mm = 2.0
-    slope_angle_deg = 60
-    layer_height = 0.08
+    pixel_size_mm = args.resolution
+    margin_mm = args.margin
+    base_height_mm = args.base_height
+    text_height_mm = args.text_height
+    slope_angle_deg = args.slope_angle
+    layer_height = args.layer_height
 
     if input_path.lower().endswith(".pdf"):
         image_path = pdf_to_png(input_path)
