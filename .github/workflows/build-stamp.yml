@@ -47,4 +47,4 @@ jobs:
         with:
           name: stamp-gcode-3mf
           path: estampo_output/
-          retention-days: 90
+          retention-days: 30
