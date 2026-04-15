@@ -48,7 +48,7 @@ def load_and_prepare(image_path, target_width_mm, pixel_size_mm, threshold=128):
         (target_width_px, target_height_px), Image.LANCZOS
     )
     binary = (np.array(img_resized) < threshold)
-    binary = np.fliplr(binary)  # mirror for stamp printing
+    binary = np.fliplr(binary)
     return binary
 
 
@@ -61,78 +61,139 @@ def generate_stamp_stl(binary, pixel_size_mm, margin_mm, base_height_mm, text_he
     cells[margin_px:margin_px + binary.shape[0],
           margin_px:margin_px + binary.shape[1]] = binary
 
-    total_h = base_height_mm + text_height_mm
+    total_h = np.float32(base_height_mm + text_height_mm)
+    base_h = np.float32(base_height_mm)
     ps = pixel_size_mm
-    tris = []
 
-    def add_quad(v0, v1, v2, v3):
-        tris.append([v0, v1, v2])
-        tris.append([v0, v2, v3])
+    cell_r, cell_c = np.mgrid[0:total_rows, 0:total_cols]
+    x0 = (cell_c * ps).ravel().astype(np.float32)
+    x1 = ((cell_c + 1) * ps).ravel().astype(np.float32)
+    y0 = ((total_rows - 1 - cell_r) * ps).ravel().astype(np.float32)
+    y1 = ((total_rows - cell_r) * ps).ravel().astype(np.float32)
+    z = np.where(cells.ravel(), total_h, base_h).astype(np.float32)
+    z0 = np.zeros_like(z)
 
-    for r in range(total_rows):
-        for c in range(total_cols):
-            x0, x1 = c * ps, (c + 1) * ps
-            y0 = (total_rows - 1 - r) * ps
-            y1 = (total_rows - r) * ps
-            z = total_h if cells[r, c] else base_height_mm
-            add_quad([x0, y0, z], [x1, y0, z], [x1, y1, z], [x0, y1, z])
-            add_quad([x0, y0, 0], [x0, y1, 0], [x1, y1, 0], [x1, y0, 0])
+    all_tris = []
 
-    max_x = total_cols * ps
-    max_y = total_rows * ps
+    # Top faces
+    all_tris.append(np.stack([
+        np.stack([x0, y0, z], axis=1),
+        np.stack([x1, y0, z], axis=1),
+        np.stack([x1, y1, z], axis=1),
+    ], axis=1))
+    all_tris.append(np.stack([
+        np.stack([x0, y0, z], axis=1),
+        np.stack([x1, y1, z], axis=1),
+        np.stack([x0, y1, z], axis=1),
+    ], axis=1))
 
-    for c in range(total_cols):
-        x0, x1 = c * ps, (c + 1) * ps
-        z = total_h if cells[total_rows - 1, c] else base_height_mm
-        add_quad([x0, 0, 0], [x1, 0, 0], [x1, 0, z], [x0, 0, z])
+    # Bottom faces
+    all_tris.append(np.stack([
+        np.stack([x0, y0, z0], axis=1),
+        np.stack([x0, y1, z0], axis=1),
+        np.stack([x1, y1, z0], axis=1),
+    ], axis=1))
+    all_tris.append(np.stack([
+        np.stack([x0, y0, z0], axis=1),
+        np.stack([x1, y1, z0], axis=1),
+        np.stack([x1, y0, z0], axis=1),
+    ], axis=1))
 
-    for c in range(total_cols):
-        x0, x1 = c * ps, (c + 1) * ps
-        z = total_h if cells[0, c] else base_height_mm
-        add_quad([x0, max_y, 0], [x0, max_y, z], [x1, max_y, z], [x1, max_y, 0])
+    def add_horizontal_walls(r):
+        diff = cells[r, :] != cells[r + 1, :]
+        if not diff.any():
+            return
+        ci = np.where(diff)[0]
+        cx0 = (ci * ps).astype(np.float32)
+        cx1 = ((ci + 1) * ps).astype(np.float32)
+        cy = np.full(len(ci), (total_rows - 1 - r) * ps, dtype=np.float32)
+        ht = np.where(cells[r, ci], total_h, base_h).astype(np.float32)
+        hb = np.where(cells[r + 1, ci], total_h, base_h).astype(np.float32)
+        zlo, zhi = np.minimum(ht, hb), np.maximum(ht, hb)
 
-    for r in range(total_rows):
-        y0 = (total_rows - 1 - r) * ps
-        y1 = (total_rows - r) * ps
-        z = total_h if cells[r, 0] else base_height_mm
-        add_quad([0, y0, 0], [0, y0, z], [0, y1, z], [0, y1, 0])
+        top_hi = ht > hb
+        if top_hi.any():
+            i = top_hi
+            all_tris.append(np.stack([np.stack([cx0[i], cy[i], zlo[i]], 1), np.stack([cx1[i], cy[i], zlo[i]], 1), np.stack([cx1[i], cy[i], zhi[i]], 1)], 1))
+            all_tris.append(np.stack([np.stack([cx0[i], cy[i], zlo[i]], 1), np.stack([cx1[i], cy[i], zhi[i]], 1), np.stack([cx0[i], cy[i], zhi[i]], 1)], 1))
+        bot_hi = ~top_hi
+        if bot_hi.any():
+            i = bot_hi
+            all_tris.append(np.stack([np.stack([cx0[i], cy[i], zlo[i]], 1), np.stack([cx0[i], cy[i], zhi[i]], 1), np.stack([cx1[i], cy[i], zhi[i]], 1)], 1))
+            all_tris.append(np.stack([np.stack([cx0[i], cy[i], zlo[i]], 1), np.stack([cx1[i], cy[i], zhi[i]], 1), np.stack([cx1[i], cy[i], zlo[i]], 1)], 1))
 
-    for r in range(total_rows):
-        y0 = (total_rows - 1 - r) * ps
-        y1 = (total_rows - r) * ps
-        z = total_h if cells[r, total_cols - 1] else base_height_mm
-        add_quad([max_x, y0, 0], [max_x, y1, 0], [max_x, y1, z], [max_x, y0, z])
+    def add_vertical_walls(c):
+        diff = cells[:, c] != cells[:, c + 1]
+        if not diff.any():
+            return
+        ri = np.where(diff)[0]
+        cx = np.full(len(ri), (c + 1) * ps, dtype=np.float32)
+        ry0 = ((total_rows - 1 - ri) * ps).astype(np.float32)
+        ry1 = ((total_rows - ri) * ps).astype(np.float32)
+        hl = np.where(cells[ri, c], total_h, base_h).astype(np.float32)
+        hr = np.where(cells[ri, c + 1], total_h, base_h).astype(np.float32)
+        zlo, zhi = np.minimum(hl, hr), np.maximum(hl, hr)
+
+        left_hi = hl > hr
+        if left_hi.any():
+            i = left_hi
+            all_tris.append(np.stack([np.stack([cx[i], ry0[i], zlo[i]], 1), np.stack([cx[i], ry0[i], zhi[i]], 1), np.stack([cx[i], ry1[i], zhi[i]], 1)], 1))
+            all_tris.append(np.stack([np.stack([cx[i], ry0[i], zlo[i]], 1), np.stack([cx[i], ry1[i], zhi[i]], 1), np.stack([cx[i], ry1[i], zlo[i]], 1)], 1))
+        right_hi = ~left_hi
+        if right_hi.any():
+            i = right_hi
+            all_tris.append(np.stack([np.stack([cx[i], ry0[i], zlo[i]], 1), np.stack([cx[i], ry1[i], zlo[i]], 1), np.stack([cx[i], ry1[i], zhi[i]], 1)], 1))
+            all_tris.append(np.stack([np.stack([cx[i], ry0[i], zlo[i]], 1), np.stack([cx[i], ry1[i], zhi[i]], 1), np.stack([cx[i], ry0[i], zhi[i]], 1)], 1))
 
     for r in range(total_rows - 1):
-        for c in range(total_cols):
-            h_top = total_h if cells[r, c] else base_height_mm
-            h_bot = total_h if cells[r + 1, c] else base_height_mm
-            if h_top != h_bot:
-                x0, x1 = c * ps, (c + 1) * ps
-                y = (total_rows - 1 - r) * ps
-                z_lo, z_hi = min(h_top, h_bot), max(h_top, h_bot)
-                if h_top > h_bot:
-                    add_quad([x0, y, z_lo], [x1, y, z_lo], [x1, y, z_hi], [x0, y, z_hi])
-                else:
-                    add_quad([x0, y, z_lo], [x0, y, z_hi], [x1, y, z_hi], [x1, y, z_lo])
+        add_horizontal_walls(r)
+    for c in range(total_cols - 1):
+        add_vertical_walls(c)
 
-    for r in range(total_rows):
-        for c in range(total_cols - 1):
-            h_left = total_h if cells[r, c] else base_height_mm
-            h_right = total_h if cells[r, c + 1] else base_height_mm
-            if h_left != h_right:
-                x = (c + 1) * ps
-                y0 = (total_rows - 1 - r) * ps
-                y1 = (total_rows - r) * ps
-                z_lo, z_hi = min(h_left, h_right), max(h_left, h_right)
-                if h_left > h_right:
-                    add_quad([x, y0, z_lo], [x, y0, z_hi], [x, y1, z_hi], [x, y1, z_lo])
-                else:
-                    add_quad([x, y0, z_lo], [x, y1, z_lo], [x, y1, z_hi], [x, y0, z_hi])
+    max_x = np.float32(total_cols * ps)
+    max_y = np.float32(total_rows * ps)
 
-    tris_arr = np.array(tris, dtype=np.float32)
-    m = stlmesh.Mesh(np.zeros(len(tris_arr), dtype=stlmesh.Mesh.dtype))
-    m.vectors = tris_arr
+    # Outer walls (vectorized per edge)
+    def outer_wall_x(row_indices, y_val, flip):
+        zz = np.where(cells[row_indices, :].ravel(), total_h, base_h) if len(row_indices) > 1 else np.where(cells[row_indices[0], :], total_h, base_h)
+        # For single-row edges
+        r_idx = row_indices[0] if len(row_indices) == 1 else None
+        if r_idx is not None:
+            zz = np.where(cells[r_idx, :], total_h, base_h).astype(np.float32)
+            xx0 = (np.arange(total_cols) * ps).astype(np.float32)
+            xx1 = ((np.arange(total_cols) + 1) * ps).astype(np.float32)
+            yy = np.full(total_cols, y_val, dtype=np.float32)
+            z_zero = np.zeros(total_cols, dtype=np.float32)
+            if flip:
+                all_tris.append(np.stack([np.stack([xx0, yy, z_zero], 1), np.stack([xx0, yy, zz], 1), np.stack([xx1, yy, zz], 1)], 1))
+                all_tris.append(np.stack([np.stack([xx0, yy, z_zero], 1), np.stack([xx1, yy, zz], 1), np.stack([xx1, yy, z_zero], 1)], 1))
+            else:
+                all_tris.append(np.stack([np.stack([xx0, yy, z_zero], 1), np.stack([xx1, yy, z_zero], 1), np.stack([xx1, yy, zz], 1)], 1))
+                all_tris.append(np.stack([np.stack([xx0, yy, z_zero], 1), np.stack([xx1, yy, zz], 1), np.stack([xx0, yy, zz], 1)], 1))
+
+    # Front (y=0)
+    outer_wall_x([total_rows - 1], np.float32(0), False)
+    # Back (y=max_y)
+    outer_wall_x([0], max_y, True)
+
+    # Left (x=0)
+    zz = np.where(cells[:, 0], total_h, base_h).astype(np.float32)
+    yy0 = ((total_rows - 1 - np.arange(total_rows)) * ps).astype(np.float32)
+    yy1 = ((total_rows - np.arange(total_rows)) * ps).astype(np.float32)
+    xx = np.zeros(total_rows, dtype=np.float32)
+    z_zero = np.zeros(total_rows, dtype=np.float32)
+    all_tris.append(np.stack([np.stack([xx, yy0, z_zero], 1), np.stack([xx, yy0, zz], 1), np.stack([xx, yy1, zz], 1)], 1))
+    all_tris.append(np.stack([np.stack([xx, yy0, z_zero], 1), np.stack([xx, yy1, zz], 1), np.stack([xx, yy1, z_zero], 1)], 1))
+
+    # Right (x=max_x)
+    zz = np.where(cells[:, total_cols - 1], total_h, base_h).astype(np.float32)
+    xx = np.full(total_rows, max_x, dtype=np.float32)
+    all_tris.append(np.stack([np.stack([xx, yy0, z_zero], 1), np.stack([xx, yy1, z_zero], 1), np.stack([xx, yy1, zz], 1)], 1))
+    all_tris.append(np.stack([np.stack([xx, yy0, z_zero], 1), np.stack([xx, yy1, zz], 1), np.stack([xx, yy0, zz], 1)], 1))
+
+    combined = np.concatenate(all_tris, axis=0)
+    m = stlmesh.Mesh(np.zeros(len(combined), dtype=stlmesh.Mesh.dtype))
+    m.vectors = combined
     return m, total_cols * ps, total_rows * ps
 
 
@@ -146,7 +207,7 @@ def main():
     output_path = sys.argv[2] if len(sys.argv) > 2 else f"{base_name}_stamp.stl"
     target_width_mm = float(sys.argv[3]) if len(sys.argv) > 3 else 43.5
 
-    pixel_size_mm = 0.2
+    pixel_size_mm = 0.05
     margin_mm = 2.0
     base_height_mm = 3.0
     text_height_mm = 2.0
