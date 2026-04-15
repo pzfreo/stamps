@@ -10,6 +10,7 @@ on:
       - "*.pdf"
       - "estampo.toml"
       - "generate_stamp.py"
+      - ".github/workflows/**"
   pull_request:
     paths:
       - "*.stl"
@@ -32,15 +33,78 @@ jobs:
         with:
           python-version: "3.12"
 
-      - name: Install stamp generator dependencies
-        run: pip install pymupdf numpy-stl Pillow scipy numpy
+      - name: Install dependencies
+        run: pip install estampo bambox pymupdf numpy-stl Pillow scipy numpy
 
       - name: Regenerate stamp STL from PDF
         run: python generate_stamp.py Borbon_1776247325.pdf Borbon_stamp.stl 43.5
 
-      - uses: estampo/estampo@main
+      - name: Run estampo pipeline
+        run: estampo run -v
+
+      - name: Extract build metrics
+        id: metrics
+        if: always()
+        run: |
+          STATS_FILE=$(find estampo_output -name stats.json -type f 2>/dev/null | head -1)
+          if [ -n "$STATS_FILE" ]; then
+            echo "print-time=$(python3 -c "import json; d=json.load(open('$STATS_FILE')); print(d.get('print_time',''))")" >> "$GITHUB_OUTPUT"
+            echo "filament-grams=$(python3 -c "import json; d=json.load(open('$STATS_FILE')); print(d.get('filament_g',''))")" >> "$GITHUB_OUTPUT"
+            echo "layer-count=$(python3 -c "import json; d=json.load(open('$STATS_FILE')); print(d.get('layer_count',''))")" >> "$GITHUB_OUTPUT"
+            echo "filament-types=$(python3 -c "import json; d=json.load(open('$STATS_FILE')); t=d.get('filament_types',[]); print(', '.join(t) if t else '')")" >> "$GITHUB_OUTPUT"
+            echo "has-stats=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Post PR comment
+        if: github.event_name == 'pull_request' && steps.metrics.outputs.has-stats == 'true'
+        uses: actions/github-script@v7
+        env:
+          PRINT_TIME: ${{ steps.metrics.outputs.print-time }}
+          FILAMENT: ${{ steps.metrics.outputs.filament-grams }}
+          LAYERS: ${{ steps.metrics.outputs.layer-count }}
+          FILAMENT_TYPES: ${{ steps.metrics.outputs.filament-types }}
         with:
-          orca-version: "2.3.1"
+          script: |
+            const marker = '<!-- estampo-slice-result -->';
+            const rows = [];
+            if (process.env.PRINT_TIME) rows.push(`| Print time | ${process.env.PRINT_TIME} |`);
+            if (process.env.FILAMENT) rows.push(`| Filament | ${process.env.FILAMENT}g |`);
+            if (process.env.LAYERS) rows.push(`| Layers | ${process.env.LAYERS} |`);
+            if (process.env.FILAMENT_TYPES) rows.push(`| Filament type | ${process.env.FILAMENT_TYPES} |`);
+
+            const body = [
+              marker,
+              '### Estampo Slice Results',
+              '',
+              '| Metric | Value |',
+              '|--------|-------|',
+              ...rows,
+              '',
+              'Sliced with OrcaSlicer 2.3.1',
+            ].join('\n');
+
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: context.issue.number,
+            });
+            const existing = comments.find(c => c.body.includes(marker));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.issue.number,
+                body,
+              });
+            }
 
       - name: Upload sliced output
         uses: actions/upload-artifact@v4
