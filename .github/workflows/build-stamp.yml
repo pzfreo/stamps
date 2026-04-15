@@ -1,0 +1,38 @@
+name: Build Stamp G-Code
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "*.stl"
+      - "*.pdf"
+      - "estampo.toml"
+      - "generate_stamp.py"
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          pip install estampo bambox pymupdf numpy-stl Pillow scipy numpy
+
+      - name: Regenerate stamp STL from PDF
+        run: python generate_stamp.py Borbon_1776247325.pdf Borbon_stamp.stl 43.5
+
+      - name: Run estampo pipeline
+        run: estampo run
+
+      - name: Upload sliced output
+        uses: actions/upload-artifact@v4
+        with:
+          name: stamp-gcode-3mf
+          path: estampo_output/
+          retention-days: 90
