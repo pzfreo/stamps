@@ -1,5 +1,7 @@
 name: Build Stamp G-Code
 
+# Rebuilds sliced gcode.3mf whenever stamp inputs change
+
 on:
   push:
     branches: [main]
@@ -8,6 +10,13 @@ on:
       - "*.pdf"
       - "estampo.toml"
       - "generate_stamp.py"
+  pull_request:
+    paths:
+      - "*.stl"
+      - "*.pdf"
+      - "estampo.toml"
+      - "generate_stamp.py"
+      - ".github/workflows/**"
 
 permissions:
   pull-requests: write
