@@ -1,0 +1,18 @@
+{
+  "print_time": "19m 6s",
+  "filament_g": 2.72,
+  "filament_cm3": 2.17,
+  "print_time_secs": 1146,
+  "layer_count": 61,
+  "filament_types": [
+    "PLA",
+    "PLA",
+    "PETG-CF"
+  ],
+  "filament_changes": 0,
+  "filament_usage_g": [
+    0.0,
+    0.0,
+    2.72
+  ]
+}

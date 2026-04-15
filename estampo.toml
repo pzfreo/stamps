@@ -19,7 +19,9 @@ printer = "Bambu Lab P1S 0.4 nozzle"
 process = "0.08mm Extra Fine @BBL X1C"
 # filaments assigned by slot number
 [slicer.orca.slots]
-3 = "Bambu PETG-CF @base"
+1 = "Generic PLA"
+2 = "Generic PLA"
+3 = "Generic PETG-CF @base"
 
 [slicer.orca.overrides]
 sparse_infill_density = "100%"
@@ -35,5 +37,5 @@ orient = "flat"
 filament = 3
 
 [pack]
-command = "bambox repack {sliced_3mf} -o {output_dir}/plate.gcode.3mf"
-output = "{output_dir}/plate.gcode.3mf"
+command = "bambox repack {output_dir}/plate_sliced.gcode.3mf"
+output = "{output_dir}/plate_sliced.gcode.3mf"
