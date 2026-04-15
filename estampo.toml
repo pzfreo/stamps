@@ -1,9 +1,9 @@
 # estampo.toml — Borbon stamp print pipeline
 # Run: estampo run --until plate   (3MF only, no Docker needed)
-# Run: estampo run                 (full slice, requires Docker)
+# Run: estampo run                 (full slice + repack, requires Docker + bambox)
 
 [pipeline]
-stages = ["load", "arrange", "plate", "slice"]
+stages = ["load", "arrange", "plate", "slice", "pack"]
 
 [plate]
 size = [256, 256]
@@ -30,3 +30,7 @@ support_type = "none"
 file = "Borbon_stamp.stl"
 copies = 1
 orient = "flat"
+
+[pack]
+command = "bambox repack {sliced_3mf} -o {output_dir}/plate.gcode.3mf"
+output = "{output_dir}/plate.gcode.3mf"
