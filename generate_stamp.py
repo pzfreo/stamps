@@ -104,47 +104,49 @@ def generate_stamp_stl(binary, pixel_size_mm, margin_mm, base_height_mm,
     all_tris.append(np.stack([np.stack([x0,y0,z0],1), np.stack([x0,y1,z0],1), np.stack([x1,y1,z0],1)], 1))
     all_tris.append(np.stack([np.stack([x0,y0,z0],1), np.stack([x1,y1,z0],1), np.stack([x1,y0,z0],1)], 1))
 
-    for r in range(total_rows - 1):
-        diff = heightmap[r, :] != heightmap[r+1, :]
-        if not diff.any():
-            continue
-        ci = np.where(diff)[0]
-        cx0 = (ci * ps).astype(np.float32)
-        cx1 = ((ci + 1) * ps).astype(np.float32)
-        cy = np.full(len(ci), (total_rows - 1 - r) * ps, dtype=np.float32)
-        ht, hb = heightmap[r, ci], heightmap[r+1, ci]
-        zlo, zhi = np.minimum(ht, hb), np.maximum(ht, hb)
-        top_hi = ht > hb
-        if top_hi.any():
-            i = top_hi
-            all_tris.append(np.stack([np.stack([cx0[i],cy[i],zlo[i]],1), np.stack([cx1[i],cy[i],zlo[i]],1), np.stack([cx1[i],cy[i],zhi[i]],1)],1))
-            all_tris.append(np.stack([np.stack([cx0[i],cy[i],zlo[i]],1), np.stack([cx1[i],cy[i],zhi[i]],1), np.stack([cx0[i],cy[i],zhi[i]],1)],1))
-        bot_hi = ~top_hi
-        if bot_hi.any():
-            i = bot_hi
-            all_tris.append(np.stack([np.stack([cx0[i],cy[i],zlo[i]],1), np.stack([cx0[i],cy[i],zhi[i]],1), np.stack([cx1[i],cy[i],zhi[i]],1)],1))
-            all_tris.append(np.stack([np.stack([cx0[i],cy[i],zlo[i]],1), np.stack([cx1[i],cy[i],zhi[i]],1), np.stack([cx1[i],cy[i],zlo[i]],1)],1))
+    unique_z = np.sort(np.unique(heightmap))
+    for k in range(len(unique_z) - 1):
+        z_bot = np.float32(unique_z[k])
+        z_top = np.float32(unique_z[k + 1])
+        filled = heightmap > z_bot
 
-    for c in range(total_cols - 1):
-        diff = heightmap[:, c] != heightmap[:, c+1]
-        if not diff.any():
-            continue
-        ri = np.where(diff)[0]
-        cx = np.full(len(ri), (c + 1) * ps, dtype=np.float32)
-        ry0 = ((total_rows - 1 - ri) * ps).astype(np.float32)
-        ry1 = ((total_rows - ri) * ps).astype(np.float32)
-        hl, hr = heightmap[ri, c], heightmap[ri, c+1]
-        zlo, zhi = np.minimum(hl, hr), np.maximum(hl, hr)
-        left_hi = hl > hr
-        if left_hi.any():
-            i = left_hi
-            all_tris.append(np.stack([np.stack([cx[i],ry0[i],zlo[i]],1), np.stack([cx[i],ry0[i],zhi[i]],1), np.stack([cx[i],ry1[i],zhi[i]],1)],1))
-            all_tris.append(np.stack([np.stack([cx[i],ry0[i],zlo[i]],1), np.stack([cx[i],ry1[i],zhi[i]],1), np.stack([cx[i],ry1[i],zlo[i]],1)],1))
-        right_hi = ~left_hi
-        if right_hi.any():
-            i = right_hi
-            all_tris.append(np.stack([np.stack([cx[i],ry0[i],zlo[i]],1), np.stack([cx[i],ry1[i],zlo[i]],1), np.stack([cx[i],ry1[i],zhi[i]],1)],1))
-            all_tris.append(np.stack([np.stack([cx[i],ry0[i],zlo[i]],1), np.stack([cx[i],ry1[i],zhi[i]],1), np.stack([cx[i],ry0[i],zhi[i]],1)],1))
+        row_diff = filled[:-1, :] != filled[1:, :]
+        if row_diff.any():
+            ri, ci = np.where(row_diff)
+            cx0 = (ci * ps).astype(np.float32)
+            cx1 = ((ci + 1) * ps).astype(np.float32)
+            cy = ((total_rows - 1 - ri) * ps).astype(np.float32)
+            z_lo = np.full(len(ri), z_bot, dtype=np.float32)
+            z_hi = np.full(len(ri), z_top, dtype=np.float32)
+            top_filled = filled[ri, ci]
+            if top_filled.any():
+                i = top_filled
+                all_tris.append(np.stack([np.stack([cx0[i],cy[i],z_lo[i]],1), np.stack([cx1[i],cy[i],z_lo[i]],1), np.stack([cx1[i],cy[i],z_hi[i]],1)],1))
+                all_tris.append(np.stack([np.stack([cx0[i],cy[i],z_lo[i]],1), np.stack([cx1[i],cy[i],z_hi[i]],1), np.stack([cx0[i],cy[i],z_hi[i]],1)],1))
+            bot_filled = ~top_filled
+            if bot_filled.any():
+                i = bot_filled
+                all_tris.append(np.stack([np.stack([cx0[i],cy[i],z_lo[i]],1), np.stack([cx0[i],cy[i],z_hi[i]],1), np.stack([cx1[i],cy[i],z_hi[i]],1)],1))
+                all_tris.append(np.stack([np.stack([cx0[i],cy[i],z_lo[i]],1), np.stack([cx1[i],cy[i],z_hi[i]],1), np.stack([cx1[i],cy[i],z_lo[i]],1)],1))
+
+        col_diff = filled[:, :-1] != filled[:, 1:]
+        if col_diff.any():
+            ri, ci = np.where(col_diff)
+            cx = ((ci + 1) * ps).astype(np.float32)
+            ry0 = ((total_rows - 1 - ri) * ps).astype(np.float32)
+            ry1 = ((total_rows - ri) * ps).astype(np.float32)
+            z_lo = np.full(len(ri), z_bot, dtype=np.float32)
+            z_hi = np.full(len(ri), z_top, dtype=np.float32)
+            left_filled = filled[ri, ci]
+            if left_filled.any():
+                i = left_filled
+                all_tris.append(np.stack([np.stack([cx[i],ry0[i],z_lo[i]],1), np.stack([cx[i],ry0[i],z_hi[i]],1), np.stack([cx[i],ry1[i],z_hi[i]],1)],1))
+                all_tris.append(np.stack([np.stack([cx[i],ry0[i],z_lo[i]],1), np.stack([cx[i],ry1[i],z_hi[i]],1), np.stack([cx[i],ry1[i],z_lo[i]],1)],1))
+            right_filled = ~left_filled
+            if right_filled.any():
+                i = right_filled
+                all_tris.append(np.stack([np.stack([cx[i],ry0[i],z_lo[i]],1), np.stack([cx[i],ry1[i],z_lo[i]],1), np.stack([cx[i],ry1[i],z_hi[i]],1)],1))
+                all_tris.append(np.stack([np.stack([cx[i],ry0[i],z_lo[i]],1), np.stack([cx[i],ry1[i],z_hi[i]],1), np.stack([cx[i],ry0[i],z_hi[i]],1)],1))
 
     max_x = np.float32(total_cols * ps)
     max_y = np.float32(total_rows * ps)
@@ -212,10 +214,26 @@ def main():
 
     m, w, h = generate_stamp_stl(binary, pixel_size_mm, margin_mm, base_height_mm,
                                   text_height_mm, slope_angle_deg, layer_height)
-    m.save(output_path)
 
     dims = m.vectors.reshape(-1, 3).max(axis=0) - m.vectors.reshape(-1, 3).min(axis=0)
     print(f"STL dimensions: {dims[0]:.1f} x {dims[1]:.1f} x {dims[2]:.1f} mm")
+
+    try:
+        import trimesh
+        import pymeshfix
+        tm = trimesh.Trimesh(vertices=m.vectors.reshape(-1, 3),
+                             faces=np.arange(len(m.vectors) * 3).reshape(-1, 3))
+        tm.merge_vertices()
+        meshfix = pymeshfix.MeshFix(tm.vertices, tm.faces)
+        meshfix.repair()
+        verts = meshfix.mesh.points
+        faces = meshfix.mesh.faces.reshape(-1, 4)[:, 1:]
+        repaired = trimesh.Trimesh(vertices=verts, faces=faces)
+        repaired.export(output_path)
+        print(f"Mesh repaired: watertight={repaired.is_watertight}")
+    except ImportError:
+        m.save(output_path)
+
     print(f"Saved: {output_path} ({os.path.getsize(output_path) / 1024 / 1024:.1f} MB)")
 
 
