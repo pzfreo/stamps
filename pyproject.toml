@@ -1,0 +1,15 @@
+[project]
+name = "stamps"
+version = "0.1.0"
+description = "Convert PDF/PNG stamp designs to 3D-printable STL files"
+requires-python = ">=3.10"
+dependencies = [
+    "numpy",
+    "scipy",
+    "Pillow",
+    "numpy-stl",
+    "pymupdf",
+    "trimesh",
+    "pymeshfix",
+    "networkx",
+]
