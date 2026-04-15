@@ -239,18 +239,22 @@ def main():
     try:
         import trimesh
         import pymeshfix
-        tm = trimesh.Trimesh(vertices=m.vectors.reshape(-1, 3),
-                             faces=np.arange(len(m.vectors) * 3).reshape(-1, 3))
-        tm.merge_vertices()
-        meshfix = pymeshfix.MeshFix(tm.vertices, tm.faces)
-        meshfix.repair()
-        verts = meshfix.mesh.points
-        faces = meshfix.mesh.faces.reshape(-1, 4)[:, 1:]
-        repaired = trimesh.Trimesh(vertices=verts, faces=faces)
-        repaired.export(output_path)
-        print(f"Mesh repaired: watertight={repaired.is_watertight}")
     except ImportError:
         m.save(output_path)
+        print(f"Saved: {output_path} ({os.path.getsize(output_path) / 1024 / 1024:.1f} MB)")
+        print("Warning: trimesh/pymeshfix not installed, skipping mesh repair")
+        return
+
+    tm = trimesh.Trimesh(vertices=m.vectors.reshape(-1, 3),
+                         faces=np.arange(len(m.vectors) * 3).reshape(-1, 3))
+    tm.merge_vertices()
+    meshfix = pymeshfix.MeshFix(tm.vertices, tm.faces)
+    meshfix.repair()
+    verts = meshfix.mesh.points
+    faces = meshfix.mesh.faces.reshape(-1, 4)[:, 1:]
+    repaired = trimesh.Trimesh(vertices=verts, faces=faces)
+    repaired.export(output_path)
+    print(f"Mesh repaired: watertight={repaired.is_watertight}")
 
     print(f"Saved: {output_path} ({os.path.getsize(output_path) / 1024 / 1024:.1f} MB)")
 
