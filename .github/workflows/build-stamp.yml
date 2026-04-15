@@ -1,5 +1,7 @@
 name: Build Stamp G-Code
 
+# Rebuilds sliced gcode.3mf whenever stamp inputs change
+
 on:
   push:
     branches: [main]
