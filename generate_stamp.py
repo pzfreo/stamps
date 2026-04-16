@@ -32,7 +32,8 @@ def pdf_to_png(pdf_path, dpi=600):
     return tmp
 
 
-def load_and_prepare(image_path, target_width_mm, pixel_size_mm, threshold=128):
+def load_and_prepare(image_path, target_width_mm, pixel_size_mm, threshold=128,
+                     erode_mm=0.0):
     img = Image.open(image_path).convert("L")
     arr = np.array(img)
 
@@ -55,6 +56,12 @@ def load_and_prepare(image_path, target_width_mm, pixel_size_mm, threshold=128):
         (target_width_px, target_height_px), Image.LANCZOS
     )
     binary = (np.array(img_resized) < threshold)
+
+    if erode_mm > 0:
+        erode_px = erode_mm / pixel_size_mm
+        dist = distance_transform_edt(binary)
+        binary = dist > erode_px
+
     binary = np.fliplr(binary)
     return binary
 
@@ -204,6 +211,11 @@ def main():
                         help="pyramid slope angle in degrees (default: 60)")
     parser.add_argument("--layer-height", type=float, default=0.08,
                         help="layer height for slope quantization in mm (default: 0.08)")
+    parser.add_argument("--threshold", type=int, default=128,
+                        help="grayscale threshold for text detection, 0-255 (default: 128)")
+    parser.add_argument("--erode", type=float, default=0.0,
+                        help="shrink text outlines by this many mm to compensate for "
+                             "nozzle spread (default: 0, try 0.2 for 0.4mm nozzle)")
     args = parser.parse_args()
 
     input_path = args.input
@@ -227,7 +239,8 @@ def main():
     print(f"Resolution: {pixel_size_mm} mm/pixel")
     print(f"Pyramid slope: {slope_angle_deg}°, layer height: {layer_height} mm")
 
-    binary = load_and_prepare(image_path, target_width_mm, pixel_size_mm)
+    binary = load_and_prepare(image_path, target_width_mm, pixel_size_mm,
+                              threshold=args.threshold, erode_mm=args.erode)
     print(f"Text grid: {binary.shape[1]} x {binary.shape[0]} pixels")
 
     m, w, h = generate_stamp_stl(binary, pixel_size_mm, margin_mm, base_height_mm,
