@@ -1,7 +1,7 @@
 [project]
 name = "stamps"
 version = "0.1.0"
-description = "Convert PDF/PNG stamp designs to 3D-printable STL files"
+description = "Convert PDF/PNG/SVG stamp designs to 3D-printable STL files"
 requires-python = ">=3.10"
 dependencies = [
     "numpy",
@@ -13,4 +13,7 @@ dependencies = [
     "pymeshfix",
     "networkx",
     "pyvista",
+    "cairosvg",
+    "svgpathtools",
+    "shapely",
 ]
