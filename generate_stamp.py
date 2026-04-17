@@ -299,12 +299,29 @@ def _to_polygon_list(geom):
     return []
 
 
+def _ensure_min_width(poly, min_width):
+    """Fatten features thinner than min_width to be exactly min_width wide."""
+    half_w = min_width / 2
+    opened = poly.buffer(-half_w).buffer(half_w)
+    thin_features = poly.difference(opened)
+    if thin_features.is_empty:
+        return poly
+    thickened = thin_features.buffer(half_w)
+    result = poly.union(thickened)
+    if not result.is_valid:
+        result = result.buffer(0)
+    return result
+
+
 def generate_stamp_stl_vector(text_poly, margin_mm, base_height_mm,
                                text_height_mm, slope_angle_deg, layer_height,
-                               erode_mm=0.0):
+                               erode_mm=0.0, min_width_mm=0.0):
     """Build a watertight STL mesh directly from vector text polygons."""
     import trimesh
     from shapely.geometry import box, Polygon
+
+    if min_width_mm > 0:
+        text_poly = _ensure_min_width(text_poly, min_width_mm)
 
     if erode_mm > 0:
         text_poly = text_poly.buffer(-erode_mm)
@@ -442,6 +459,10 @@ def main():
                              "try 0.2 for 0.4mm nozzle)")
     parser.add_argument("--dpi", type=int, default=600,
                         help="rasterization DPI for PDF input (default: 600)")
+    parser.add_argument("--min-width", type=float, default=0.0,
+                        help="fatten text features thinner than this to "
+                             "ensure printability in mm (default: 0, "
+                             "try 0.4 for 0.4mm nozzle)")
     parser.add_argument("--decimate", type=float, default=0,
                         help="reduce triangle count by this fraction (0-0.95),"
                              " e.g. 0.8 removes 80%% of triangles "
@@ -471,7 +492,8 @@ def main():
 
         m, w, h = generate_stamp_stl_vector(
             text_poly, margin_mm, base_height_mm, text_height_mm,
-            slope_angle_deg, layer_height, erode_mm=args.erode)
+            slope_angle_deg, layer_height, erode_mm=args.erode,
+            min_width_mm=args.min_width)
     else:
         # ---- Raster pipeline ----
         pixel_size_mm = args.resolution
