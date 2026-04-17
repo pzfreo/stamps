@@ -327,6 +327,8 @@ def generate_stamp_stl_vector(text_poly, margin_mm, base_height_mm,
         text_poly = text_poly.buffer(-erode_mm)
         if text_poly.is_empty:
             raise ValueError("Erosion removed all text content")
+        if min_width_mm > 0:
+            text_poly = _ensure_min_width(text_poly, min_width_mm)
 
     slope_dist = text_height_mm / np.tan(np.radians(slope_angle_deg))
     total_h = base_height_mm + text_height_mm
