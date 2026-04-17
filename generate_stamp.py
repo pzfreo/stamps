@@ -315,7 +315,8 @@ def _ensure_min_width(poly, min_width):
 
 def generate_stamp_stl_vector(text_poly, margin_mm, base_height_mm,
                                text_height_mm, slope_angle_deg, layer_height,
-                               erode_mm=0.0, min_width_mm=0.0):
+                               erode_mm=0.0, min_width_mm=0.0,
+                               reapply_min_width=True):
     """Build a watertight STL mesh directly from vector text polygons."""
     import trimesh
     from shapely.geometry import box, Polygon
@@ -327,7 +328,7 @@ def generate_stamp_stl_vector(text_poly, margin_mm, base_height_mm,
         text_poly = text_poly.buffer(-erode_mm)
         if text_poly.is_empty:
             raise ValueError("Erosion removed all text content")
-        if min_width_mm > 0:
+        if min_width_mm > 0 and reapply_min_width:
             text_poly = _ensure_min_width(text_poly, min_width_mm)
 
     slope_dist = text_height_mm / np.tan(np.radians(slope_angle_deg))
@@ -465,6 +466,8 @@ def main():
                         help="fatten text features thinner than this to "
                              "ensure printability in mm (default: 0, "
                              "try 0.4 for 0.4mm nozzle)")
+    parser.add_argument("--no-reapply", action="store_true",
+                        help="don't reapply --min-width after --erode")
     parser.add_argument("--decimate", type=float, default=0,
                         help="reduce triangle count by this fraction (0-0.95),"
                              " e.g. 0.8 removes 80%% of triangles "
@@ -495,7 +498,8 @@ def main():
         m, w, h = generate_stamp_stl_vector(
             text_poly, margin_mm, base_height_mm, text_height_mm,
             slope_angle_deg, layer_height, erode_mm=args.erode,
-            min_width_mm=args.min_width)
+            min_width_mm=args.min_width,
+            reapply_min_width=not args.no_reapply)
     else:
         # ---- Raster pipeline ----
         pixel_size_mm = args.resolution
