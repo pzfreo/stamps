@@ -37,7 +37,7 @@ jobs:
         run: pip install estampo bambox pymupdf numpy-stl Pillow scipy numpy
 
       - name: Regenerate stamp STL from PDF
-        run: python generate_stamp.py Borbon_1776247325.pdf Borbon_stamp.stl 43.5
+        run: python generate_stamp.py Borbon_1776247325.pdf -o Borbon_stamp.stl -w 43.5
 
       - name: Run estampo pipeline
         run: estampo run -v
